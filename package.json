@@ -1,0 +1,24 @@
+{
+  "name": "assp",
+  "version": "0.0.1",
+  "description": "AssetPAcker",
+  "main": "assp.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Daniel Schöttl",
+  "license": "ISC",
+  "dependencies": {
+    "coffee-script": "^1.12.7",
+    "eco": "^1.1.0-rc-3",
+    "less-sync": "git+https://github.com/slb235/less-sync.git",
+    "minimist": "^1.2.0",
+    "sass": "^1.0.0-beta.5.2",
+    "uglify-js": "^3.3.12",
+    "uglifycss": "^0.0.28"
+  },
+  "bin": {
+    "assp": "assp.js"
+  }
+  
+}
