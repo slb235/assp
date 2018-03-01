@@ -59,12 +59,11 @@ function processFile(file) {
       break;
     case ".eco":
       var ecoPfad = path.relative(startPfad, pfad)
+      datei = transformEco(datei, ecoPfad, fileName)
 
       if (!ecoEncounter) {
         ecoEncounter =true
-        datei = "window.JST = {};" + transformEco(datei, ecoPfad, fileName)
-      } else {
-        datei = transformEco(datei, ecoPfad, fileName)
+        datei = "window.JST = {};" + datei
       }
       break;
   }
@@ -147,7 +146,7 @@ function transformEco(file, pfad, dateiName) {
   return "window.JST['" + pfad + "/" + dateiName + "'] = " + eco.precompile(file) + ";" + "\n"
 }
 
-//oben nicht required, da nur ienmal aufgerufen wird
+//oben nicht required, da nur einmal aufgerufen wird, kann mit require() eingebunden werden
 var argv = require('minimist')(process.argv.slice(2));
 
 var startPfad = path.dirname(argv._[0])
@@ -162,9 +161,16 @@ if (argv.c) {
   output = uglifycss.processString(output)
 }
 
+
+if (argv.o) {
+  fs.writeFileSync(argv.o, output, 'utf8')
+} else {
+  console.log(output)
+}
+
 //var output = processFolder(process.argv[2])
 //var output = transformLess(process.argv[2])
 
-console.log(output)
+
 
 // KISS DRY
