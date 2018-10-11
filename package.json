@@ -19,6 +19,6 @@
     "uglifycss": "^0.0.28"
   },
   "bin": {
-    "assp": "assp.js"
+    "assp": "index.js"
   }
 }
