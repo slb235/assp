@@ -175,6 +175,7 @@ else {
   module.exports = {
     process: async function (file, callback) {
       startPfad = path.dirname(file)
+      ecoEncounter = false
       callback(await processFile(file))
     }
   }
