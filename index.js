@@ -174,6 +174,7 @@ if (require.main === module) {
 else {
   module.exports = {
     process: async function (file, callback) {
+      startPfad = path.dirname(file)
       callback(await processFile(file))
     }
   }
