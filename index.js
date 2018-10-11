@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 //Asset Packager
-var fs = require('fs')
+var fs = require('mz/fs')
 var path = require('path')
 var coffee = require('coffee-script')
 var sass = require('sass')
-var less = require('less-sync')
+var less = require('less')
 var eco = require('eco')
-var UglifyJS = require("uglify-js")
+var UglifyJS = require('uglify-js')
 var uglifycss = require('uglifycss')
 
-
 var ecoEncounter = false
+var startPfad
 
-
-function processFile(file) {
+async function processFile(file) {
   var args = file
   var endings = [".js", ".js.coffee", ".css", ".css.less", ".jst.eco", ".css.scss"]
   var pfad = path.dirname(args)
@@ -22,12 +21,12 @@ function processFile(file) {
 
   //Datei kann mit oder ohne Endung eingegeben werden
 
-  if (fs.existsSync(args)) {
+  if (await fs.exists(args)) {
     newEnding = ""
   } else {
 
     for (var i = 0; i < endings.length; i++) {
-      if (fs.existsSync(args + endings[i])) {
+      if (await fs.exists(args + endings[i])) {
         newEnding = endings[i]
         break
       }
@@ -39,7 +38,7 @@ function processFile(file) {
 
 
   try {
-    var datei = fs.readFileSync(args + newEnding, { encoding: "utf8" })
+    var datei = await fs.readFile(args + newEnding, { encoding: "utf8" })
     var datei2 = datei
   }
   catch (err) {
@@ -49,17 +48,17 @@ function processFile(file) {
 
   switch (trueEnding) {
     case ".less":
-      datei = transformLess(datei, pfad)
+      datei = await transformLess(datei, args + newEnding)
       break;
     case ".coffee":
-      datei = transformCoffee(datei)
+      datei = await transformCoffee(datei)
       break;
     case ".scss":
-      datei = transformScss(datei)
+      datei = await transformScss(datei)
       break;
     case ".eco":
       var ecoPfad = path.relative(startPfad, pfad)
-      datei = transformEco(datei, ecoPfad, fileName)
+      datei = await transformEco(datei, ecoPfad, fileName)
 
       if (!ecoEncounter) {
         ecoEncounter =true
@@ -90,14 +89,14 @@ function processFile(file) {
 
     switch (requireType) {
       case "require":
-        reqBlock = reqBlock + processFile(pfadFolder) + "\n"
+        reqBlock = reqBlock + await processFile(pfadFolder) + "\n"
         break;
       case "require_self":
         checkReqSelf = true
         reqBlock = reqBlock + datei
         break;
       case "require_tree":
-        reqBlock = reqBlock + processFolder(pfadFolder) + "\n"
+        reqBlock = reqBlock + await processFolder(pfadFolder) + "\n"
         break;
     }
 
@@ -112,61 +111,74 @@ function processFile(file) {
   //return reqBlock
 }
 
-function processFolder(folder) {
-  var tree = fs.readdirSync(folder, { encoding: "utf8" })
+async function processFolder(folder) {
+  var tree = await fs.readdir(folder, { encoding: "utf8" })
   var folderBlock = ""
 
   for (var i = 0; i < tree.length; i++) {
     var pfad = path.join(folder, tree[i])
 
-    if (fs.lstatSync(pfad).isDirectory()) {
-      folderBlock = folderBlock + processFolder(pfad) + "\n"
+    if ((await fs.lstat(pfad)).isDirectory()) {
+      folderBlock = folderBlock + await processFolder(pfad) + "\n"
     } else {
-      folderBlock = folderBlock + processFile(pfad) + "\n"
+      folderBlock = folderBlock + await processFile(pfad) + "\n"
     }
   }
 
   return folderBlock
 }
 
-function transformLess(file, pfad) {
-  return less.compile(file, pfad) + "\n"
+async function transformLess(file, pfad) {
+  return (await less.render(file, { filename: pfad })).css
 }
 
-function transformCoffee(file) {
+async function transformCoffee(file) {
   return coffee.compile(file) + "\n" 
 }
 
-function transformScss(file) {
+async function transformScss(file) {
   return sass.renderSync({ data: file }).css.toString("utf-8") + "\n"
 }
 
 //window.JST['templates/template']({ name: 'Peter' })
-function transformEco(file, pfad, dateiName) {
+async function transformEco(file, pfad, dateiName) {
   return "window.JST['" + pfad + "/" + dateiName + "'] = " + eco.precompile(file) + ";" + "\n"
 }
 
-//oben nicht required, da nur einmal aufgerufen wird, kann mit require() eingebunden werden
-var argv = require('minimist')(process.argv.slice(2));
+if (require.main === module) {
+  async function main() {
+    //oben nicht required, da nur einmal aufgerufen wird, kann mit require() eingebunden werden
+    var argv = require('minimist')(process.argv.slice(2))
 
-var startPfad = path.dirname(argv._[0])
+    startPfad = path.dirname(argv._[0])
 
-var output = processFile(argv._[0])
+    var output = await processFile(argv._[0])
 
-if (argv.u) {
-  output = UglifyJS.minify(output).code
+    if (argv.u) {
+      output = UglifyJS.minify(output).code
+    }
+
+    if (argv.c) {
+      output = uglifycss.processString(output)
+    }
+
+
+    if (argv.o) {
+      fs.writeFileSync(argv.o, output, 'utf8')
+    } else {
+      console.log(output)
+    }
+  }
+  main()
+}
+else {
+  module.exports = {
+    process: async function (file, callback) {
+      callback(await processFile(file))
+    }
+  }
 }
 
-if (argv.c) {
-  output = uglifycss.processString(output)
-}
-
-
-if (argv.o) {
-  fs.writeFileSync(argv.o, output, 'utf8')
-} else {
-  console.log(output)
-}
 
 //var output = processFolder(process.argv[2])
 //var output = transformLess(process.argv[2])
