@@ -12,43 +12,75 @@ var uglifycss = require('uglifycss')
 var ecoEncounter = false
 var startPfad
 
-async function processFile(file) {
-  var args = file
-  var endings = [".js", ".js.coffee", ".css", ".css.less", ".jst.eco", ".css.scss"]
-  var pfad = path.dirname(args)
+var endings = [".js", ".js.coffee", ".css", ".css.less", ".jst.eco", ".css.scss"]
+
+function array_unique(array) {
+  var a = array.concat()
+  for(var i=0; i<a.length; ++i) {
+      for(var j=i+1; j<a.length; ++j) {
+          if(a[i] === a[j])
+              a.splice(j--, 1)
+      }
+  }
+  return a
+}
+
+
+// resolve correct filename to use. if it is found in whitelabel use that one,
+// else use original one
+
+async function whiteLabelResolveFile(file, whitelabel) {
+  var wlfile = 'whitelabel/'+ whitelabel +'/merge/' + file
+
+  if(await fs.exists(wlfile)) {
+    return wlfile
+  }
+  for(ending of endings) {
+    if(await fs.exists(wlfile + ending)) {
+      return wlfile
+    } 
+  }
+  return file
+}
+
+async function processFile(file, whitelabel) {
+
+  file = await whiteLabelResolveFile(file, whitelabel)
+
+  var pfad = path.dirname(file)
   var newEnding = ""
   //console.log(pfad)
 
   //Datei kann mit oder ohne Endung eingegeben werden
 
-  if (await fs.exists(args)) {
+  if (await fs.exists(file)) {
     newEnding = ""
   } else {
 
     for (var i = 0; i < endings.length; i++) {
-      if (await fs.exists(args + endings[i])) {
+      if (await fs.exists(file + endings[i])) {
         newEnding = endings[i]
         break
       }
     }
   }
 
-  var trueEnding = path.extname(args + newEnding)
-  var fileName = path.basename(args, '.jst.eco')
+  var trueEnding = path.extname(file + newEnding)
+  var fileName = path.basename(file, '.jst.eco')
 
 
   try {
-    var datei = await fs.readFile(args + newEnding, { encoding: "utf8" })
+    var datei = await fs.readFile(file + newEnding, { encoding: "utf8" })
     var datei2 = datei
   }
   catch (err) {
-    console.log(args + " nicht vorhanden")
+    console.log(file + " nicht vorhanden")
     process.exit(-1)
   }
 
   switch (trueEnding) {
     case ".less":
-      datei = await transformLess(datei, args + newEnding)
+      datei = await transformLess(datei, file + newEnding)
       break;
     case ".coffee":
       datei = await transformCoffee(datei)
@@ -89,14 +121,14 @@ async function processFile(file) {
 
     switch (requireType) {
       case "require":
-        reqBlock = reqBlock + await processFile(pfadFolder) + "\n"
+        reqBlock = reqBlock + await processFile(pfadFolder, whitelabel) + "\n"
         break;
       case "require_self":
         checkReqSelf = true
         reqBlock = reqBlock + datei
         break;
       case "require_tree":
-        reqBlock = reqBlock + await processFolder(pfadFolder) + "\n"
+        reqBlock = reqBlock + await processFolder(pfadFolder, whitelabel) + "\n"
         break;
     }
 
@@ -111,17 +143,23 @@ async function processFile(file) {
   //return reqBlock
 }
 
-async function processFolder(folder) {
+async function processFolder(folder, whitelabel) {
   var tree = await fs.readdir(folder, { encoding: "utf8" })
+
+  var wl_directory = 'whitelabel/'+ whitelabel + '/merge/' + folder
+  if(whitelabel && await fs.exists(wl_directory) && (await fs.lstat(wl_directory)).isDirectory()) {
+    tree = array_unique(tree.concat(await fs.readdir(wl_directory, { encoding: "utf8" })))
+  }
+
   var folderBlock = ""
 
   for (var i = 0; i < tree.length; i++) {
     var pfad = path.join(folder, tree[i])
 
-    if ((await fs.lstat(pfad)).isDirectory()) {
-      folderBlock = folderBlock + await processFolder(pfad) + "\n"
+    if (await fs.exists(pfad) && (await fs.lstat(pfad)).isDirectory()) {
+      folderBlock = folderBlock + await processFolder(pfad, whitelabel) + "\n"
     } else {
-      folderBlock = folderBlock + await processFile(pfad) + "\n"
+      folderBlock = folderBlock + await processFile(pfad, whitelabel) + "\n"
     }
   }
 
@@ -142,6 +180,9 @@ async function transformScss(file) {
 
 //window.JST['templates/template']({ name: 'Peter' })
 async function transformEco(file, pfad, dateiName) {
+  // strip whitelabel
+  pfad = pfad.substr(pfad.indexOf('actionbound/templates'))
+
   return "window.JST['" + pfad + "/" + dateiName + "'] = " + eco.precompile(file) + ";" + "\n"
 }
 
@@ -173,10 +214,10 @@ if (require.main === module) {
 }
 else {
   module.exports = {
-    process: async function (file, callback) {
+    process: async function (file, whitelabel, callback) {
       startPfad = path.dirname(file)
       ecoEncounter = false
-      callback(await processFile(file))
+      callback(await processFile(file, whitelabel))
     }
   }
 }
