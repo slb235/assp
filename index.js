@@ -30,9 +30,8 @@ function array_unique(array) {
 // else use original one
 
 async function whiteLabelResolveFile(file, whitelabel) {
-  var wlfile = 'whitelabel/'+ whitelabel +'/merge/' + file
-
   file = file.replace('whitelabel/'+ whitelabel +'/merge/', '')
+  var wlfile = 'whitelabel/'+ whitelabel +'/merge/' + file
 
   if(await fs.exists(wlfile)) {
     return wlfile
